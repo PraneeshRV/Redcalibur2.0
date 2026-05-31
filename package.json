@@ -1,0 +1,19 @@
+{
+  "name": "redcalibur-2",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c red,cyan \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "cd apps/api && .venv/bin/python -m uvicorn redcalibur_api.main:app --reload --port 8000",
+    "dev:web": "npm --workspace apps/web run dev",
+    "test:api": "cd apps/api && .venv/bin/python -m pytest -q",
+    "test:web": "npm --workspace apps/web run test",
+    "test": "npm run test:api && npm run test:web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
+

@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "demo-filesystem": {
+      "command": "node",
+      "args": ["./safe-demo-server.js"],
+      "env": {
+        "DEMO_TOKEN": "redacted-demo-token"
+      }
+    }
+  }
+}
+

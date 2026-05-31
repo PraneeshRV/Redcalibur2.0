@@ -26,5 +26,10 @@
 
 ## Current State
 
-Planning package is ready for user review. Implementation has not started.
+Implementation approved on 2026-05-31.
 
+## 2026-05-31
+
+- Initialized Git repository and switched to `product-spine-preview`.
+- Committed planning package as baseline commit `2ce401b`.
+- Started Product Spine Preview implementation.

@@ -1,0 +1,9 @@
+{
+  "name": "redcalibur-demo-ai-stack",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "demo-vulnerable-package": "1.0.0"
+  }
+}
+

@@ -14,8 +14,8 @@ Revamp RedCalibur into an A-first AI Security + Developer Exposure Workbench tha
 | Brainstorm product directions | complete | visual companion and design spec |
 | Define architecture and safety spine | complete | architecture blueprint and safety policy |
 | Define roadmap and first implementation slice | complete | roadmap and Product Spine Preview plan |
-| User review and approval | in_progress | next user decision |
-| Implementation | pending | starts only after approval |
+| User review and approval | complete | user said to proceed |
+| Implementation | in_progress | Product Spine Preview |
 
 ## Current Decision
 
@@ -50,4 +50,3 @@ Product Spine Preview:
 ## Next Step
 
 User reviews the planning package and chooses whether to execute with subagent-driven development or inline execution.
-
