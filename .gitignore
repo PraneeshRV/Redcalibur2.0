@@ -6,6 +6,7 @@ build/
 .pytest_cache/
 __pycache__/
 *.pyc
+*.egg-info/
 .venv/
 venv/
 data/
@@ -15,4 +16,3 @@ test-results/
 .env
 .env.local
 .superpowers/
-

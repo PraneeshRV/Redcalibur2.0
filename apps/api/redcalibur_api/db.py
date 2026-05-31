@@ -15,6 +15,7 @@ from redcalibur_api.models import (
     RiskTier,
     ScopeDeclaration,
     Workspace,
+    WorkspaceCreate,
 )
 
 
@@ -33,7 +34,11 @@ def db_path() -> Path:
 
 @contextmanager
 def connect() -> Iterator[sqlite3.Connection]:
-    data_dir().mkdir(parents=True, exist_ok=True)
+    data_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(data_dir(), 0o700)
+    except PermissionError:
+        pass
     conn = sqlite3.connect(db_path())
     conn.row_factory = sqlite3.Row
     try:
@@ -102,7 +107,7 @@ def seed_demo_workspace() -> None:
         )
         conn.execute(
             """
-            INSERT OR REPLACE INTO scope_declarations (
+            INSERT OR IGNORE INTO scope_declarations (
               id, workspace_id, mode, allowed_roots_json, excluded_roots_json,
               allowed_targets_json, max_risk_tier, authorization_text, policy_version
             )
@@ -124,6 +129,12 @@ def seed_demo_workspace() -> None:
 
 def initialize_database() -> None:
     seed_demo_workspace()
+    try:
+        os.chmod(db_path(), 0o600)
+    except FileNotFoundError:
+        pass
+    except PermissionError:
+        pass
 
 
 def list_workspaces() -> list[Workspace]:
@@ -138,6 +149,21 @@ def get_workspace(workspace_id: str) -> Workspace | None:
     if row is None:
         return None
     return Workspace(id=row["id"], name=row["name"], mode=row["mode"], purpose=row["purpose"])
+
+
+def create_workspace(workspace: WorkspaceCreate) -> Workspace:
+    with connect() as conn:
+        try:
+            conn.execute(
+                """
+                INSERT INTO workspaces (id, name, mode, purpose)
+                VALUES (?, ?, ?, ?)
+                """,
+                (workspace.id, workspace.name, workspace.mode.value, workspace.purpose),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("Workspace already exists") from exc
+    return Workspace(id=workspace.id, name=workspace.name, mode=workspace.mode, purpose=workspace.purpose)
 
 
 def get_scope(workspace_id: str) -> ScopeDeclaration | None:
@@ -240,4 +266,3 @@ def new_audit_event_id() -> str:
 
 def utc_now() -> str:
     return datetime.now(UTC).isoformat()
-

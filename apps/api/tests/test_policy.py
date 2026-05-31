@@ -58,6 +58,19 @@ def test_blocks_external_url_in_demo_mode() -> None:
     assert "Demo mode" in " ".join(response.reasons)
 
 
+def test_blocks_public_ip_target_in_demo_mode() -> None:
+    response = preview_policy(
+        demo_scope(),
+        "8.8.8.8",
+        TargetType.ip,
+        RiskTier.offline_demo,
+        project_root=PROJECT_ROOT,
+    )
+
+    assert response.decision == PolicyDecision.blocked
+    assert "Demo mode" in " ".join(response.reasons)
+
+
 def test_blocks_private_ip_target() -> None:
     response = preview_policy(
         demo_scope(),
@@ -71,6 +84,19 @@ def test_blocks_private_ip_target() -> None:
     assert "private" in " ".join(response.reasons).lower()
 
 
+def test_blocks_missing_scope() -> None:
+    response = preview_policy(
+        None,
+        str(PROJECT_ROOT / "fixtures" / "demo-ai-stack" / "package.json"),
+        TargetType.local_path,
+        RiskTier.offline_demo,
+        project_root=PROJECT_ROOT,
+    )
+
+    assert response.decision == PolicyDecision.blocked
+    assert "No scope" in " ".join(response.reasons)
+
+
 def test_blocks_requested_risk_above_workspace_max() -> None:
     response = preview_policy(
         demo_scope(),
@@ -82,4 +108,3 @@ def test_blocks_requested_risk_above_workspace_max() -> None:
 
     assert response.decision == PolicyDecision.blocked
     assert "risk" in " ".join(response.reasons).lower()
-

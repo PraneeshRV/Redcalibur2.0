@@ -4,8 +4,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from redcalibur_api import db
-from redcalibur_api.models import AuditEvent, RunPreviewRequest, RunPreviewResponse, ScopeDeclaration
+from redcalibur_api.models import AuditEvent, RunPreviewRequest, RunPreviewResponse, ScopeDeclaration, WorkspaceCreate
 from redcalibur_api.policy import preview_policy
+
+
+def _redacted_target_label(target: str) -> str:
+    return f"redacted:{hashlib.sha256(target.encode('utf-8')).hexdigest()[:12]}"
 
 
 def create_app() -> FastAPI:
@@ -14,7 +18,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["GET", "POST", "PUT"],
         allow_headers=["*"],
     )
@@ -28,6 +32,14 @@ def create_app() -> FastAPI:
     async def workspaces():
         db.initialize_database()
         return db.list_workspaces()
+
+    @app.post("/workspaces", status_code=201)
+    async def create_workspace(workspace: WorkspaceCreate):
+        db.initialize_database()
+        try:
+            return db.create_workspace(workspace)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/workspaces/{workspace_id}")
     async def workspace(workspace_id: str):
@@ -64,19 +76,20 @@ def create_app() -> FastAPI:
         scope = db.get_scope(workspace_id)
         decision = preview_policy(scope, request.target, request.target_type, request.risk_tier)
 
-        input_summary = f"{request.target_type.value}:{request.target}:risk-{int(request.risk_tier)}"
-        redacted_hash = hashlib.sha256(input_summary.encode("utf-8")).hexdigest()
+        raw_input_summary = f"{request.target_type.value}:{request.target}:risk-{int(request.risk_tier)}"
+        redacted_hash = hashlib.sha256(raw_input_summary.encode("utf-8")).hexdigest()
+        redacted_target = _redacted_target_label(request.target)
         db.insert_audit_event(
             AuditEvent(
                 id=db.new_audit_event_id(),
                 workspace_id=workspace_id,
                 mode=workspace.mode,
                 action="run_preview",
-                target=request.target,
+                target=redacted_target,
                 risk_tier=request.risk_tier,
                 decision=decision.decision,
                 policy_version=decision.policy_version,
-                input_summary=input_summary,
+                input_summary=f"{request.target_type.value}:{redacted_target}:risk-{int(request.risk_tier)}",
                 redacted_input_hash=redacted_hash,
                 created_at=db.utc_now(),
             )

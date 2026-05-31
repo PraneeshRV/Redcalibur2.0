@@ -26,6 +26,8 @@ class TargetType(StrEnum):
     url = "url"
     domain = "domain"
     ip = "ip"
+    repo = "repo"
+    package = "package"
 
 
 class PolicyDecision(StrEnum):
@@ -40,6 +42,13 @@ class Workspace(BaseModel):
     name: str
     mode: Mode
     purpose: str
+
+
+class WorkspaceCreate(BaseModel):
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,62}$")
+    name: str = Field(min_length=1)
+    mode: Mode
+    purpose: str = Field(min_length=1)
 
 
 class ScopeDeclaration(BaseModel):
@@ -79,4 +88,3 @@ class AuditEvent(BaseModel):
     input_summary: str
     redacted_input_hash: str
     created_at: str
-

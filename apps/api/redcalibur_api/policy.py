@@ -49,7 +49,7 @@ def preview_policy(
     if int(risk_tier) > int(scope.max_risk_tier):
         reasons.append(f"Requested risk tier {int(risk_tier)} exceeds workspace max risk tier {int(scope.max_risk_tier)}.")
 
-    if target_type in {TargetType.url, TargetType.domain} and scope.mode == Mode.demo:
+    if target_type in {TargetType.url, TargetType.domain, TargetType.ip} and scope.mode == Mode.demo:
         reasons.append("Demo mode blocks arbitrary network targets.")
 
     if target_type == TargetType.url:
