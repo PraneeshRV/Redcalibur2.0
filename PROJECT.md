@@ -58,3 +58,37 @@ Scanners, AI, and open-data intelligence should follow only after that spine exi
 - no live AI provider calls
 - no network target checks
 - audit every run preview, including blocked previews
+
+## Product Spine Preview Status
+
+Implemented on 2026-05-31:
+
+- Next.js operator console
+- FastAPI API
+- project-local SQLite persistence
+- seeded `RedCalibur Demo - AI Coding Stack` workspace
+- durable scope declaration
+- `POST /workspaces`
+- deterministic policy preview
+- blocked Demo-mode URL/domain/IP previews
+- allowed local fixture preview
+- redacted audit display targets
+- audit event persistence for allowed and blocked previews
+- production-build Playwright smoke tests
+
+Stop line preserved:
+
+- no scanner execution
+- no live AI provider calls
+- no report generation
+- no OSV/CVE/KEV/EPSS integrations
+- no backend network target execution
+
+Verification:
+
+```txt
+npm run test
+API: 13 passed
+Web: production build passed
+Playwright: 2 passed
+```

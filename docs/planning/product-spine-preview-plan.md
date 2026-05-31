@@ -248,3 +248,35 @@ The Product Spine Preview is done when:
 - tests verify the above
 - no scanner, AI, report, or network execution has slipped in
 
+## Execution Result
+
+Status: Complete after verification on 2026-05-31.
+
+Delivered:
+
+- local app startup scripts
+- FastAPI health, workspace, scope, run-preview, and audit APIs
+- `POST /workspaces`
+- SQLite workspace, scope, and audit persistence
+- demo workspace seed that does not overwrite saved scopes
+- policy tests for local allow, excluded path, missing scope, URL/IP Demo blocks, and high-risk blocks
+- Command Center UI with scope status, run preview, and audit events
+- Playwright tests for blocked external URL and allowed local fixture preview
+- startup/test instructions in top-level `README.md`
+
+Verification:
+
+```txt
+npm run test
+API: 13 passed
+Web: production build passed
+Playwright: 2 passed
+```
+
+Stop-line search:
+
+```txt
+rg -n "osv|cve|kev|epss|anthropic|openai|scanner|report export|subprocess|requests\\.get|fetch\\(" apps/api apps/web
+```
+
+Result: only frontend `fetch(` calls to the local RedCalibur API were found.

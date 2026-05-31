@@ -33,3 +33,12 @@ Implementation approved on 2026-05-31.
 - Initialized Git repository and switched to `product-spine-preview`.
 - Committed planning package as baseline commit `2ce401b`.
 - Started Product Spine Preview implementation.
+- Implemented FastAPI API, SQLite persistence, policy preview, audit events, and Next.js operator console.
+- Added `POST /workspaces`, durable scope updates, Demo-mode network target blocks, redacted audit display targets, and README setup instructions after review findings.
+- Installed npm dependencies, Python API virtualenv dependencies, and Playwright Chromium runtime.
+- Verified with `npm run test`: API 13 passed, production web build passed, Playwright 2 passed.
+- Stop-line search found only frontend calls to the local RedCalibur API.
+
+## Current State
+
+Product Spine Preview is implemented and verified.
