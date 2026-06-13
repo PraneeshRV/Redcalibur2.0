@@ -10,9 +10,15 @@ from pathlib import Path
 from redcalibur_api.models import (
     POLICY_VERSION,
     AuditEvent,
+    EvidenceItem,
+    Job,
+    JobStatus,
     Mode,
     PolicyDecision,
     RiskTier,
+    Run,
+    RunKind,
+    RunStatus,
     ScopeDeclaration,
     Workspace,
     WorkspaceCreate,
@@ -85,6 +91,44 @@ def migrate() -> None:
               redacted_input_hash TEXT NOT NULL,
               created_at TEXT NOT NULL,
               FOREIGN KEY(workspace_id) REFERENCES workspaces(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS runs (
+              id TEXT PRIMARY KEY,
+              workspace_id TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              status TEXT NOT NULL,
+              policy_snapshot_json TEXT NOT NULL,
+              started_at TEXT NOT NULL,
+              finished_at TEXT,
+              FOREIGN KEY(workspace_id) REFERENCES workspaces(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS jobs (
+              id TEXT PRIMARY KEY,
+              run_id TEXT NOT NULL,
+              tool_id TEXT NOT NULL,
+              status TEXT NOT NULL,
+              input_json TEXT NOT NULL,
+              output_summary_json TEXT,
+              error TEXT,
+              started_at TEXT NOT NULL,
+              finished_at TEXT,
+              FOREIGN KEY(run_id) REFERENCES runs(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS evidence_items (
+              id TEXT PRIMARY KEY,
+              workspace_id TEXT NOT NULL,
+              run_id TEXT NOT NULL,
+              source_tool TEXT NOT NULL,
+              evidence_type TEXT NOT NULL,
+              title TEXT NOT NULL,
+              summary TEXT NOT NULL,
+              normalized_json TEXT NOT NULL,
+              collected_at TEXT NOT NULL,
+              FOREIGN KEY(workspace_id) REFERENCES workspaces(id),
+              FOREIGN KEY(run_id) REFERENCES runs(id)
             );
             """
         )
@@ -247,7 +291,7 @@ def list_audit_events(workspace_id: str) -> list[AuditEvent]:
             id=row["id"],
             workspace_id=row["workspace_id"],
             mode=row["mode"],
-            action="run_preview",
+            action=row["action"],
             target=row["target"],
             risk_tier=row["risk_tier"],
             decision=PolicyDecision(row["decision"]),
@@ -264,5 +308,153 @@ def new_audit_event_id() -> str:
     return str(uuid.uuid4())
 
 
+def new_id() -> str:
+    return str(uuid.uuid4())
+
+
 def utc_now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def create_run(run: Run) -> Run:
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO runs (id, workspace_id, kind, status, policy_snapshot_json, started_at, finished_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (run.id, run.workspace_id, run.kind.value, run.status.value,
+             json.dumps(run.policy_snapshot), run.started_at, run.finished_at),
+        )
+    return run
+
+
+def update_run_status(run_id: str, status: RunStatus, finished_at: str | None = None) -> None:
+    with connect() as conn:
+        conn.execute(
+            "UPDATE runs SET status = ?, finished_at = ? WHERE id = ?",
+            (status.value, finished_at, run_id),
+        )
+
+
+def get_run(run_id: str) -> Run | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+    if row is None:
+        return None
+    return Run(
+        id=row["id"],
+        workspace_id=row["workspace_id"],
+        kind=RunKind(row["kind"]),
+        status=RunStatus(row["status"]),
+        policy_snapshot=json.loads(row["policy_snapshot_json"]),
+        started_at=row["started_at"],
+        finished_at=row["finished_at"],
+    )
+
+
+def list_runs(workspace_id: str) -> list[Run]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM runs WHERE workspace_id = ? ORDER BY started_at DESC",
+            (workspace_id,),
+        ).fetchall()
+    return [
+        Run(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            kind=RunKind(row["kind"]),
+            status=RunStatus(row["status"]),
+            policy_snapshot=json.loads(row["policy_snapshot_json"]),
+            started_at=row["started_at"],
+            finished_at=row["finished_at"],
+        )
+        for row in rows
+    ]
+
+
+def create_job(job: Job) -> Job:
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO jobs (id, run_id, tool_id, status, input_json, output_summary_json, error, started_at, finished_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (job.id, job.run_id, job.tool_id, job.status.value,
+             json.dumps(job.input),
+             json.dumps(job.output_summary) if job.output_summary is not None else None,
+             job.error, job.started_at, job.finished_at),
+        )
+    return job
+
+
+def update_job(job: Job) -> None:
+    with connect() as conn:
+        conn.execute(
+            """
+            UPDATE jobs SET status = ?, output_summary_json = ?, error = ?, finished_at = ?
+            WHERE id = ?
+            """,
+            (job.status.value,
+             json.dumps(job.output_summary) if job.output_summary is not None else None,
+             job.error, job.finished_at, job.id),
+        )
+
+
+def list_jobs(run_id: str) -> list[Job]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE run_id = ? ORDER BY started_at",
+            (run_id,),
+        ).fetchall()
+    return [
+        Job(
+            id=row["id"],
+            run_id=row["run_id"],
+            tool_id=row["tool_id"],
+            status=JobStatus(row["status"]),
+            input=json.loads(row["input_json"]),
+            output_summary=json.loads(row["output_summary_json"]) if row["output_summary_json"] else None,
+            error=row["error"],
+            started_at=row["started_at"],
+            finished_at=row["finished_at"],
+        )
+        for row in rows
+    ]
+
+
+def insert_evidence_item(item: EvidenceItem) -> EvidenceItem:
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO evidence_items
+              (id, workspace_id, run_id, source_tool, evidence_type, title, summary, normalized_json, collected_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (item.id, item.workspace_id, item.run_id, item.source_tool,
+             item.evidence_type, item.title, item.summary,
+             json.dumps(item.normalized), item.collected_at),
+        )
+    return item
+
+
+def list_evidence_items(run_id: str) -> list[EvidenceItem]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM evidence_items WHERE run_id = ? ORDER BY collected_at",
+            (run_id,),
+        ).fetchall()
+    return [
+        EvidenceItem(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            run_id=row["run_id"],
+            source_tool=row["source_tool"],
+            evidence_type=row["evidence_type"],
+            title=row["title"],
+            summary=row["summary"],
+            normalized=json.loads(row["normalized_json"]),
+            collected_at=row["collected_at"],
+        )
+        for row in rows
+    ]

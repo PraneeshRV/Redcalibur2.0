@@ -1,5 +1,5 @@
 from enum import IntEnum, StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -80,7 +80,7 @@ class AuditEvent(BaseModel):
     id: str
     workspace_id: str
     mode: Mode
-    action: Literal["run_preview"]
+    action: Literal["run_preview", "run"]
     target: str
     risk_tier: RiskTier
     decision: PolicyDecision
@@ -88,3 +88,65 @@ class AuditEvent(BaseModel):
     input_summary: str
     redacted_input_hash: str
     created_at: str
+
+
+class RunKind(StrEnum):
+    manifest_scan = "manifest_scan"
+
+
+class RunStatus(StrEnum):
+    queued = "queued"
+    running = "running"
+    complete = "complete"
+    failed = "failed"
+
+
+class JobStatus(StrEnum):
+    queued = "queued"
+    running = "running"
+    complete = "complete"
+    failed = "failed"
+
+
+class Run(BaseModel):
+    id: str
+    workspace_id: str
+    kind: RunKind
+    status: RunStatus
+    policy_snapshot: dict[str, Any]
+    started_at: str
+    finished_at: str | None = None
+
+
+class Job(BaseModel):
+    id: str
+    run_id: str
+    tool_id: str
+    status: JobStatus
+    input: dict[str, Any]
+    output_summary: dict[str, Any] | None = None
+    error: str | None = None
+    started_at: str
+    finished_at: str | None = None
+
+
+class EvidenceItem(BaseModel):
+    id: str
+    workspace_id: str
+    run_id: str
+    source_tool: str
+    evidence_type: str
+    title: str
+    summary: str
+    normalized: dict[str, Any]
+    collected_at: str
+
+
+class RunStartRequest(BaseModel):
+    kind: RunKind
+
+
+class RunResponse(BaseModel):
+    run: Run
+    jobs: list[Job]
+    evidence: list[EvidenceItem]

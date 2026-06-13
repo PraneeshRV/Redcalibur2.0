@@ -42,3 +42,27 @@ Implementation approved on 2026-05-31.
 ## Current State
 
 Product Spine Preview is implemented and verified.
+
+## 2026-06-13
+
+- Started Phase 3 (Tool Registry and Developer Surface Scan) on top of the Product Spine.
+- Added Run/Job/EvidenceItem models, SQLite tables, and CRUD.
+- Added a tool registry + adapter contract and the read-only Manifest Scan adapter
+  (package.json, pyproject.toml, requirements.txt, Cargo.toml, go.mod; pure-Python, no subprocess, no network).
+- Added run endpoints: `POST /workspaces/{id}/runs`, `GET /workspaces/{id}/runs`, `GET /runs/{id}`.
+- Added a Developer Surface web page with multi-page nav (Command Center + Developer Surface).
+- Verification against the safety policy found and fixed three gaps before declaring done:
+  - run endpoint now passes through a deterministic policy gate (tool risk tier vs scope max) and writes a `run` audit event;
+  - manifest scan now honors `excluded_roots` (will not read manifests under excluded paths such as `secrets/`);
+  - adapter faults are captured as failed job/run results instead of surfacing a 500.
+- Verified: API 26 passed, web production build passed, Playwright 2 passed.
+
+## Phase 3 Remaining (not yet built)
+
+Still required to fully close Phase 3:
+
+- MCP config inventory adapter
+- AI config inventory adapter
+- redacted secrets baseline check
+- per-adapter timeout/output caps + cancellation
+- "no unsafe command execution" test for the adapter execution contract
