@@ -1,0 +1,25 @@
+# Local, offline RedCalibur release. The API persists its SQLite DB and run
+# artifacts to the named volume; the web console talks to the API on localhost.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - redcalibur-data:/data
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  redcalibur-data:

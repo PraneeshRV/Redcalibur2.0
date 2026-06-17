@@ -47,6 +47,7 @@ _KIND_TO_TOOLS: dict[RunKind, list[str]] = {
     RunKind.ai_config_scan: ["redcalibur.developer_surface.ai_config_scan"],
     RunKind.secrets_baseline: ["redcalibur.developer_surface.secrets_baseline"],
     RunKind.vuln_scan: ["redcalibur.vuln_intel.vuln_scan"],
+    RunKind.ai_eval: ["redcalibur.ai_lab.ai_eval"],
     RunKind.baseline: [
         "redcalibur.developer_surface.manifest_scan",
         "redcalibur.developer_surface.mcp_config_scan",

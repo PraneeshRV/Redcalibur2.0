@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install JS dependencies
+        run: npm ci || npm install
+
+      - name: Create API virtualenv and install
+        run: |
+          python -m venv apps/api/.venv
+          apps/api/.venv/bin/python -m pip install --upgrade pip
+          apps/api/.venv/bin/python -m pip install -e 'apps/api[test]'
+
+      - name: API tests
+        run: npm run test:api
+
+      - name: Web production build
+        run: npm --workspace apps/web run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright tests
+        run: CI=1 npm --workspace apps/web run test
+
+      - name: AI security threshold gate (strict, lenient thresholds)
+        # On a real project you would set --max-critical 0 here to fail the build
+        # on any critical finding. The seeded demo intentionally ships criticals,
+        # so the repo's own CI uses lenient thresholds and fails for real if they
+        # are exceeded.
+        run: apps/api/.venv/bin/python scripts/ci_threshold_check.py --max-critical 5 --max-kev 5
+
+      - name: Verify the gate fails when thresholds are exceeded
+        # Proves the mechanism: with --max-critical 0 the demo data must trip the
+        # gate (non-zero exit). If it ever passes, that is itself a failure.
+        run: |
+          if apps/api/.venv/bin/python scripts/ci_threshold_check.py --max-critical 0 --max-kev 0; then
+            echo "Threshold gate did not fail on demo data — gate is broken"; exit 1
+          else
+            echo "Threshold gate correctly failed on demo data"
+          fi

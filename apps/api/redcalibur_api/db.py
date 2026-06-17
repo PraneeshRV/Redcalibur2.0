@@ -13,6 +13,8 @@ from redcalibur_api.models import (
     EvidenceItem,
     Job,
     JobStatus,
+    FindingState,
+    FindingStatus,
     Mode,
     PolicyDecision,
     RiskTier,
@@ -147,6 +149,16 @@ def migrate() -> None:
               created_at TEXT NOT NULL,
               UNIQUE(run_id, seq),
               FOREIGN KEY(run_id) REFERENCES runs(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS finding_states (
+              finding_id TEXT NOT NULL,
+              workspace_id TEXT NOT NULL,
+              status TEXT NOT NULL,
+              note TEXT,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (workspace_id, finding_id),
+              FOREIGN KEY(workspace_id) REFERENCES workspaces(id)
             );
             """
         )
@@ -500,6 +512,36 @@ def list_workspace_evidence(workspace_id: str) -> list[EvidenceItem]:
         )
         for row in rows
     ]
+
+
+def get_finding_states(workspace_id: str) -> dict[str, FindingState]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM finding_states WHERE workspace_id = ?",
+            (workspace_id,),
+        ).fetchall()
+    return {
+        row["finding_id"]: FindingState(
+            finding_id=row["finding_id"],
+            workspace_id=row["workspace_id"],
+            status=FindingStatus(row["status"]),
+            note=row["note"],
+            updated_at=row["updated_at"],
+        )
+        for row in rows
+    }
+
+
+def set_finding_state(state: FindingState) -> FindingState:
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO finding_states (finding_id, workspace_id, status, note, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (state.finding_id, state.workspace_id, state.status.value, state.note, state.updated_at),
+        )
+    return state
 
 
 def get_run_status(run_id: str) -> RunStatus | None:

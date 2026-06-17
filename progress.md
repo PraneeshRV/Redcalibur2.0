@@ -114,4 +114,28 @@ Phase 7 — Findings, report export, UI polish:
 
 ## Current State
 
-MVP complete (Phases 0-7). Workspace/scope/safety spine, developer-surface scans, run orchestration, offline vulnerability intelligence, evidence-backed mock AI analyst, findings triage, and Markdown/HTML report export are all built and verified. Remaining roadmap items (v1 AI security lab, v2 recon-to-report) are future work; any live network/AI source must go behind a Tier-2 policy gate.
+MVP complete (Phases 0-7). Workspace/scope/safety spine, developer-surface scans, run orchestration, offline vulnerability intelligence, evidence-backed mock AI analyst, findings triage, and Markdown/HTML report export are all built and verified.
+
+## 2026-06-17 (v1 AI Security Lab + v2 scaffold)
+
+Built v1 fully (offline) and scaffolded v2 without any live-network path.
+
+v1 — AI security lab + finding lifecycle:
+- `lab/mock_app.py`: in-process mock AI target (pure function, no network) with a planted secret and a `hardened` mode modeling a fixed app.
+- `lab/suites.py`: deterministic prompt-injection / RAG-leakage / unsafe-tool-use probes with detectors; eval doubles as a regression test.
+- `tools/ai_eval.py`: Tier-0 adapter (offline); failing probes become `ai_eval_result` evidence → findings. New `ai_eval` RunKind.
+- Finding lifecycle: stable finding ids (intrinsic attributes, survive re-runs), `finding_states` table, `PATCH /findings/{id}` (open/accepted/false_positive/fixed/verified) with existence validation, `POST /findings/{id}/verify` (re-runs the probe against a hardened target → verified; ai_eval-only). Findings/report overlay persisted status.
+- CI: `.github/workflows/ci.yml` (api tests + web build + Playwright + threshold gate) and `scripts/ci_threshold_check.py` (in-process, exits non-zero past critical/KEV thresholds; CI proves both pass-on-lenient and fail-on-strict).
+- Docker: api + web Dockerfiles and `docker-compose.yml` for a local offline release.
+- UI: new `/lab` page (run suites, results by category, verify button), lifecycle status controls on the Findings page. Nav now five pages.
+
+v2 — recon-to-report scaffold (no live network):
+- `recon/gate.py`: `NETWORK_RECON_ENABLED = False` single chokepoint; `POST /workspaces/{id}/recon` returns 403 with the policy deferral reason.
+- `recon/asset_graph.py` + `GET /asset-graph`: builds a workspace→manifest→package→vulnerability / ai_target→vulnerability graph from local evidence only.
+
+Reviewed against the safety policy (no new network, mock AI only, recon gated, planted secret cannot reach analyst/report, no XSS) — no blockers; applied the three flagged fixes (finding-id validation on PATCH/verify, robust probe lookup from the finding instead of path parsing, CI gate now demonstrably fails on strict thresholds).
+- Verified: API 84 passed (9 new), web build passed (6 routes), Playwright 6 passed (incl. AI-lab verify flow). CI threshold script confirmed.
+
+## Current State
+
+v1 (AI Security Lab) complete and verified on top of the MVP. v2's asset graph is available from local evidence; v2 live network recon remains hard-gated off per the safety policy until the Tier-2 prerequisites (target-resolution gate, external-target gate, rate limits, dry-run UX) are built. Flipping `recon/gate.py` is the single enabling step once those exist.

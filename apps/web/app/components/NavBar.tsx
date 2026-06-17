@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, LayoutDashboard, Search, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Activity, FlaskConical, LayoutDashboard, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/developer-surface", label: "Developer Surface", icon: Search },
   { href: "/runs", label: "Runs", icon: Activity },
   { href: "/findings", label: "Findings", icon: ShieldAlert },
+  { href: "/lab", label: "AI Lab", icon: FlaskConical },
 ];
 
 export function NavBar() {

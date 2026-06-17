@@ -15,6 +15,9 @@ from redcalibur_api.models import (
     AnalystRequest,
     AnalystResponse,
     AuditEvent,
+    FindingState,
+    FindingStatus,
+    FindingStatusUpdate,
     Job,
     JobStatus,
     Run,
@@ -27,6 +30,10 @@ from redcalibur_api.models import (
     WorkspaceCreate,
     is_terminal_run_status,
 )
+from redcalibur_api.lab import suites as lab_suites
+from redcalibur_api.lab.mock_app import MockAIApp
+from redcalibur_api.recon import gate as recon_gate
+from redcalibur_api.recon.asset_graph import build_asset_graph
 from redcalibur_api.orchestrator import RunOrchestrator, tools_for_kind
 from redcalibur_api.policy import preview_policy
 from redcalibur_api.tools import manifest_scan as _manifest_scan_module  # noqa: F401 — registers adapter
@@ -34,6 +41,7 @@ from redcalibur_api.tools import mcp_config_scan as _mcp_config_scan_module  # n
 from redcalibur_api.tools import ai_config_scan as _ai_config_scan_module  # noqa: F401 — registers adapter
 from redcalibur_api.tools import secrets_baseline as _secrets_baseline_module  # noqa: F401 — registers adapter
 from redcalibur_api.tools import vuln_scan as _vuln_scan_module  # noqa: F401 — registers adapter
+from redcalibur_api.tools import ai_eval as _ai_eval_module  # noqa: F401 — registers adapter
 
 # How long a synchronous (wait=True) run request will block before returning a
 # still-running snapshot. Generous enough for the deterministic local adapters.
@@ -55,7 +63,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=["http://localhost:3000"],
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT"],
+        allow_methods=["GET", "POST", "PUT", "PATCH"],
         allow_headers=["*"],
     )
 
@@ -147,7 +155,89 @@ def create_app() -> FastAPI:
         if db.get_workspace(workspace_id) is None:
             raise HTTPException(status_code=404, detail="Workspace not found")
         evidence = db.list_workspace_evidence(workspace_id)
-        return derive_findings(workspace_id, evidence)
+        states = db.get_finding_states(workspace_id)
+        return derive_findings(workspace_id, evidence, states)
+
+    def _derived_findings(workspace_id: str):
+        evidence = db.list_workspace_evidence(workspace_id)
+        states = db.get_finding_states(workspace_id)
+        return derive_findings(workspace_id, evidence, states)
+
+    @app.patch("/workspaces/{workspace_id}/findings/{finding_id}")
+    async def update_finding(workspace_id: str, finding_id: str, update: FindingStatusUpdate):
+        db.initialize_database()
+        if db.get_workspace(workspace_id) is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        # The finding must currently exist (no orphan status rows for stale ids).
+        if not any(f.id == finding_id for f in _derived_findings(workspace_id)):
+            raise HTTPException(status_code=404, detail="Finding not found")
+        state = db.set_finding_state(
+            FindingState(
+                finding_id=finding_id,
+                workspace_id=workspace_id,
+                status=update.status,
+                note=update.note,
+                updated_at=db.utc_now(),
+            )
+        )
+        return state
+
+    @app.post("/workspaces/{workspace_id}/findings/{finding_id}/verify")
+    async def verify_finding(workspace_id: str, finding_id: str):
+        db.initialize_database()
+        if db.get_workspace(workspace_id) is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        finding = next((f for f in _derived_findings(workspace_id) if f.id == finding_id), None)
+        if finding is None:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        # Only ai_eval findings carry a re-runnable probe. Verification re-runs the
+        # probe against a hardened ("fixed") target; if it no longer triggers, the
+        # finding is marked verified — a regression check, fully offline.
+        if finding.finding_kind.value != "ai_eval":
+            raise HTTPException(status_code=400, detail="Only ai_eval findings support automated verification.")
+        # The probe id is the finding's vuln_id (stable, not parsed from the path).
+        probe_id = finding.vuln_id
+        result = lab_suites.evaluate_probe(MockAIApp(hardened=True), probe_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Probe not found for finding.")
+        new_status = FindingStatus.verified if not result.vulnerable else FindingStatus.open
+        state = db.set_finding_state(
+            FindingState(
+                finding_id=finding_id,
+                workspace_id=workspace_id,
+                status=new_status,
+                note="Re-ran probe against hardened target." if not result.vulnerable else "Probe still vulnerable.",
+                updated_at=db.utc_now(),
+            )
+        )
+        return {"finding_id": finding_id, "verified": not result.vulnerable, "state": state, "probe_result": result}
+
+    @app.get("/workspaces/{workspace_id}/asset-graph")
+    async def asset_graph(workspace_id: str):
+        db.initialize_database()
+        workspace = db.get_workspace(workspace_id)
+        if workspace is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        evidence = db.list_workspace_evidence(workspace_id)
+        return build_asset_graph(workspace, evidence)
+
+    @app.post("/workspaces/{workspace_id}/recon")
+    async def recon(workspace_id: str):
+        db.initialize_database()
+        if db.get_workspace(workspace_id) is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        # v2 network recon is gated off by the safety policy. Refuse explicitly.
+        if not recon_gate.network_recon_enabled():
+            raise HTTPException(status_code=403, detail=recon_gate.deferred_reason())
+        raise HTTPException(status_code=501, detail="Recon execution not implemented.")
+
+    @app.get("/lab/probes")
+    async def lab_probes():
+        probes = lab_suites.list_probes()
+        return [
+            {"id": p.id, "category": p.category, "title": p.title}
+            for p in probes
+        ]
 
     @app.get("/workspaces/{workspace_id}/report")
     async def report(workspace_id: str, format: str = "md"):
@@ -159,10 +249,11 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="format must be 'md' or 'html'")
         runs = db.list_runs(workspace_id)
         evidence = db.list_workspace_evidence(workspace_id)
+        states = db.get_finding_states(workspace_id)
         if format == "html":
-            return HTMLResponse(reporting.build_html(workspace, runs, evidence))
+            return HTMLResponse(reporting.build_html(workspace, runs, evidence, states=states))
         return PlainTextResponse(
-            reporting.build_markdown(workspace, runs, evidence),
+            reporting.build_markdown(workspace, runs, evidence, states=states),
             media_type="text/markdown",
         )
 

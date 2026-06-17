@@ -7,6 +7,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 type Finding = {
   id: string;
+  finding_kind: string;
   package: string;
   ecosystem: string;
   vuln_id: string;
@@ -21,6 +22,8 @@ type Finding = {
   evidence_id: string;
   status: string;
 };
+
+const STATUSES = ["open", "accepted", "false_positive", "fixed", "verified"];
 
 type Claim = { text: string; evidence_ids: string[] };
 type AnalystResponse = {
@@ -114,6 +117,20 @@ export default function FindingsPage() {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
+  async function setStatus(findingId: string, status: string) {
+    if (!workspace) return;
+    try {
+      await fetch(`${API_BASE}/workspaces/${workspace.id}/findings/${findingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      await loadFindings(workspace.id);
+    } catch {
+      setError("Failed to update status — API not reachable.");
+    }
+  }
+
   function openReport(format: "md" | "html") {
     if (!workspace) return;
     window.open(`${API_BASE}/workspaces/${workspace.id}/report?format=${format}`, "_blank");
@@ -157,6 +174,7 @@ export default function FindingsPage() {
                 <strong style={{ fontFamily: "ui-monospace, monospace" }}>{f.ecosystem}:{f.package}</strong>
                 <span style={{ color: "var(--muted)" }}>{f.vuln_id}</span>
                 {f.kev ? <span className="blocked" style={{ fontSize: 11 }}>KEV</span> : null}
+                <span className="chip" style={{ fontSize: 11 }}>{f.status}</span>
                 <span style={{ marginLeft: "auto", color: "var(--muted)", fontSize: 12 }}>{f.severity_label}</span>
               </div>
               {expanded[f.id] && (
@@ -166,6 +184,12 @@ export default function FindingsPage() {
                     {f.fix_available ? <>Fix available: upgrade to <strong>{f.fixed_version}</strong></> : "No fixed version in feed"}
                   </p>
                   <p style={{ margin: "2px 0", color: "var(--muted)" }}>Evidence: <code>{f.evidence_id}</code></p>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                    Status:
+                    <select value={f.status} onChange={(e) => setStatus(f.id, e.target.value)}>
+                      {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </label>
                 </div>
               )}
             </div>

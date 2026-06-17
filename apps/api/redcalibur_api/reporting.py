@@ -18,6 +18,7 @@ from redcalibur_api.findings import derive_findings
 from redcalibur_api.models import (
     AnalystQuestionKind,
     EvidenceItem,
+    FindingState,
     Mode,
     Run,
     Workspace,
@@ -46,9 +47,10 @@ def build_markdown(
     runs: list[Run],
     evidence: list[EvidenceItem],
     generated_at: str | None = None,
+    states: dict[str, FindingState] | None = None,
 ) -> str:
     generated_at = generated_at or datetime.now(UTC).isoformat()
-    findings = derive_findings(workspace.id, evidence)
+    findings = derive_findings(workspace.id, evidence, states)
     counts = _summary_counts(findings)
     prioritized = analyst_gateway.analyze(AnalystQuestionKind.prioritize, evidence)
     feed = vuln_intel.feed_meta()
@@ -94,14 +96,14 @@ def build_markdown(
     lines.append("## Findings")
     lines.append("")
     if findings:
-        lines.append("| Priority | Package | Vulnerability | Severity | KEV | Fix | Evidence |")
-        lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+        lines.append("| Priority | Package | Vulnerability | Severity | KEV | Fix | Status | Evidence |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
         for f in findings:
             fix = f.fixed_version or "—"
             kev = "yes" if f.kev else "no"
             lines.append(
                 f"| {f.priority_score} | {f.ecosystem}:{f.package} | {f.vuln_id} | "
-                f"{f.severity_label} ({f.severity_cvss}) | {kev} | {fix} | `{f.evidence_id}` |"
+                f"{f.severity_label} ({f.severity_cvss}) | {kev} | {fix} | {f.status.value} | `{f.evidence_id}` |"
             )
     else:
         lines.append("No vulnerability findings recorded.")
@@ -123,9 +125,10 @@ def build_html(
     runs: list[Run],
     evidence: list[EvidenceItem],
     generated_at: str | None = None,
+    states: dict[str, FindingState] | None = None,
 ) -> str:
     generated_at = generated_at or datetime.now(UTC).isoformat()
-    findings = derive_findings(workspace.id, evidence)
+    findings = derive_findings(workspace.id, evidence, states)
     counts = _summary_counts(findings)
     prioritized = analyst_gateway.analyze(AnalystQuestionKind.prioritize, evidence)
     feed = vuln_intel.feed_meta()
@@ -149,11 +152,12 @@ def build_html(
             f"<td>{esc(f.severity_label)} ({f.severity_cvss})</td>"
             f"<td>{'yes' if f.kev else 'no'}</td>"
             f"<td>{esc(f.fixed_version or '—')}</td>"
+            f"<td>{esc(f.status.value)}</td>"
             f"<td><code>{esc(f.evidence_id)}</code></td>"
             "</tr>"
         )
     if not rows:
-        rows = '<tr><td colspan="7">No vulnerability findings recorded.</td></tr>'
+        rows = '<tr><td colspan="8">No vulnerability findings recorded.</td></tr>'
 
     recs = ""
     for claim in prioritized.claims:
@@ -204,7 +208,7 @@ code {{ font-family: ui-monospace, monospace; font-size: 12px; }}
 <ul>{recs}</ul>
 <h2>Findings</h2>
 <table>
-<thead><tr><th>Priority</th><th>Package</th><th>Vulnerability</th><th>Severity</th><th>KEV</th><th>Fix</th><th>Evidence</th></tr></thead>
+<thead><tr><th>Priority</th><th>Package</th><th>Vulnerability</th><th>Severity</th><th>KEV</th><th>Fix</th><th>Status</th><th>Evidence</th></tr></thead>
 <tbody>{rows}</tbody>
 </table>
 <h2>Evidence Index</h2>

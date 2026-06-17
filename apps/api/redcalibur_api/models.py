@@ -96,6 +96,7 @@ class RunKind(StrEnum):
     ai_config_scan = "ai_config_scan"
     secrets_baseline = "secrets_baseline"
     vuln_scan = "vuln_scan"
+    ai_eval = "ai_eval"
     baseline = "baseline"
 
 
@@ -180,22 +181,94 @@ class AnalystRequest(BaseModel):
     run_id: str | None = None  # restrict to one run; default = all workspace evidence
 
 
+class FindingStatus(StrEnum):
+    open = "open"
+    accepted = "accepted"
+    false_positive = "false_positive"
+    fixed = "fixed"
+    verified = "verified"
+
+
+class FindingKind(StrEnum):
+    dependency = "dependency"
+    ai_eval = "ai_eval"
+
+
 class Finding(BaseModel):
-    id: str
+    id: str  # stable across runs (not tied to a single evidence row)
     workspace_id: str
+    finding_kind: FindingKind = FindingKind.dependency
     package: str
     ecosystem: str
     vuln_id: str
-    aliases: list[str]
-    severity_cvss: float
-    severity_label: str
-    kev: bool
-    epss: float
-    priority_score: int
-    fixed_version: str | None
-    fix_available: bool
+    aliases: list[str] = Field(default_factory=list)
+    severity_cvss: float = 0.0
+    severity_label: str = "unknown"
+    kev: bool = False
+    epss: float = 0.0
+    priority_score: int = 0
+    fixed_version: str | None = None
+    fix_available: bool = False
     evidence_id: str
-    status: str = "open"
+    status: FindingStatus = FindingStatus.open
+    note: str | None = None
+
+
+class FindingStatusUpdate(BaseModel):
+    status: FindingStatus
+    note: str | None = None
+
+
+class FindingState(BaseModel):
+    finding_id: str
+    workspace_id: str
+    status: FindingStatus
+    note: str | None = None
+    updated_at: str
+
+
+class AITarget(BaseModel):
+    id: str
+    name: str
+    hardened: bool = False
+    description: str = ""
+
+
+class AssetNode(BaseModel):
+    id: str
+    kind: str  # workspace | manifest | package | vulnerability | ai_target
+    label: str
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class AssetEdge(BaseModel):
+    source: str
+    target: str
+    relation: str  # declares | depends_on | affected_by | exposes
+
+
+class AssetGraph(BaseModel):
+    workspace_id: str
+    nodes: list[AssetNode]
+    edges: list[AssetEdge]
+    note: str = ""
+
+
+class ProbeResult(BaseModel):
+    probe_id: str
+    category: str
+    title: str
+    vulnerable: bool
+    detail: str
+
+
+class AIEvalResult(BaseModel):
+    target_id: str
+    target_name: str
+    hardened: bool
+    total_probes: int
+    vulnerable_count: int
+    results: list[ProbeResult]
 
 
 class AnalystClaim(BaseModel):
