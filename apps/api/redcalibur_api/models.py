@@ -92,6 +92,10 @@ class AuditEvent(BaseModel):
 
 class RunKind(StrEnum):
     manifest_scan = "manifest_scan"
+    mcp_config_scan = "mcp_config_scan"
+    ai_config_scan = "ai_config_scan"
+    secrets_baseline = "secrets_baseline"
+    baseline = "baseline"
 
 
 class RunStatus(StrEnum):
@@ -99,6 +103,17 @@ class RunStatus(StrEnum):
     running = "running"
     complete = "complete"
     failed = "failed"
+    cancelling = "cancelling"
+    cancelled = "cancelled"
+
+
+_TERMINAL_RUN_STATUSES = frozenset(
+    {RunStatus.complete, RunStatus.failed, RunStatus.cancelled}
+)
+
+
+def is_terminal_run_status(status: "RunStatus") -> bool:
+    return status in _TERMINAL_RUN_STATUSES
 
 
 class JobStatus(StrEnum):
@@ -106,6 +121,7 @@ class JobStatus(StrEnum):
     running = "running"
     complete = "complete"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class Run(BaseModel):
@@ -142,8 +158,22 @@ class EvidenceItem(BaseModel):
     collected_at: str
 
 
+class RunEvent(BaseModel):
+    id: str
+    run_id: str
+    seq: int
+    event_type: str
+    payload: dict[str, Any]
+    created_at: str
+
+
 class RunStartRequest(BaseModel):
     kind: RunKind
+    # When true (default) the request blocks until the run reaches a terminal
+    # state and returns the full result — preserves the simple synchronous
+    # contract. When false the run is enqueued and a queued snapshot returns
+    # immediately so the UI can stream live progress.
+    wait: bool = True
 
 
 class RunResponse(BaseModel):

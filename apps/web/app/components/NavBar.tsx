@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/", label: "Command Center", icon: LayoutDashboard },
   { href: "/developer-surface", label: "Developer Surface", icon: Search },
+  { href: "/runs", label: "Runs", icon: Activity },
 ];
 
 export function NavBar() {

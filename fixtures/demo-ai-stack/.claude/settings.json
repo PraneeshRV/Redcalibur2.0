@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "demo-mcp-server": {
+      "command": "node",
+      "args": ["./demo-mcp.js"],
+      "env": {}
+    }
+  }
+}

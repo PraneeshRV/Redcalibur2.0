@@ -57,12 +57,36 @@ Product Spine Preview is implemented and verified.
   - adapter faults are captured as failed job/run results instead of surfacing a 500.
 - Verified: API 26 passed, web production build passed, Playwright 2 passed.
 
-## Phase 3 Remaining (not yet built)
+## 2026-06-17
 
-Still required to fully close Phase 3:
+Phase 3 complete. Remaining items built and verified:
 
-- MCP config inventory adapter
-- AI config inventory adapter
-- redacted secrets baseline check
-- per-adapter timeout/output caps + cancellation
-- "no unsafe command execution" test for the adapter execution contract
+- `tools/mcp_config_scan.py` — inventories `.mcp.json`, `mcp.json`, `claude_desktop_config.json`, `.claude/settings.json`; reads `mcpServers` and `servers` keys; captures env key names only (not values)
+- `tools/ai_config_scan.py` — inventories Claude, Cursor, Copilot, Aider, Continue, Codex config artifacts
+- `tools/secrets_baseline.py` — regex scan for 13 high-confidence secret patterns; captures pattern+line only, never the secret value; 512 KB file cap, 20 findings/file cap, 200 total cap
+- Per-adapter timeout: `ThreadPoolExecutor` with `_ADAPTER_TIMEOUT_SECONDS = 30` wraps every adapter execution; timeout surfaces as a failed job, not a 500
+- `RunKind` extended with `mcp_config_scan`, `ai_config_scan`, `secrets_baseline`
+- No-unsafe-exec tests: AST-based import audit for all 4 adapters (no `subprocess` allowed)
+- 26 new tests; all 52 API + 2 Playwright pass
+
+## Current State
+
+Phase 3 is complete. All developer surface scan adapters are built and verified.
+
+## 2026-06-17 (Phase 4)
+
+Phase 4 (Run Orchestration and Evidence Store) built on top of Phase 3.
+
+- Background worker (`orchestrator.py`): a single daemon thread drains a run queue and executes a run's jobs sequentially. Every job still passes the deterministic policy gate (tool risk tier vs scope max), writes a per-job `run` audit event, and runs its adapter in a thread with a 30s wall-clock cap; adapter faults/timeouts are captured as failed jobs, never 500s.
+- Multi-job runs: new `baseline` RunKind fans out across all four developer-surface adapters as four jobs under one run. Single-kind runs keep one-job behavior.
+- Async + sync contract: `POST /workspaces/{id}/runs` enqueues a run; `wait` (default true) blocks until terminal and returns the full result (preserves the prior synchronous contract and all existing tests), `wait:false` returns a queued snapshot for live UI.
+- Cancellation: `POST /runs/{id}/cancel` sets a persisted `cancelling` status + signals the in-process worker; the worker checks before each job and resolves the run to `cancelled`. New `cancelling`/`cancelled` run statuses and `cancelled` job status.
+- Live event stream: `run_events` table (atomic monotonic per-run seq, UNIQUE(run_id, seq)) plus `GET /runs/{id}/events` SSE endpoint with client-disconnect and 5-minute ceiling guards.
+- Artifact persistence: each terminal run writes a durable JSON snapshot to `data/artifacts/{run_id}.json` (0o600).
+- UI: new `/runs` page — start baseline, live progress polling, run history, per-job states, policy-blocked badge, cancel button, evidence drawer joined to jobs by source tool. Nav extended to three pages.
+- Reviewed against the safety policy (no new network/subprocess paths, all writes under `data/`, gate intact) and fixed four concurrency issues found in review: two-writer seq race (atomic INSERT...SELECT + UNIQUE), `_done` event-dict leak (pop on finalize), non-deterministic job order (`ORDER BY rowid`), unbounded SSE loop (disconnect + ceiling), and made the adapter timeout non-blocking for the worker.
+- Verified: API 59 passed (7 new), web production build passed, Playwright 3 passed (1 new).
+
+## Current State
+
+Phase 4 is complete and verified. Run orchestration, cancellation, live events, artifact persistence, and the Runs/evidence browser are in place.

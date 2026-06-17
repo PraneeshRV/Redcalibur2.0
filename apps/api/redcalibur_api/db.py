@@ -17,6 +17,7 @@ from redcalibur_api.models import (
     PolicyDecision,
     RiskTier,
     Run,
+    RunEvent,
     RunKind,
     RunStatus,
     ScopeDeclaration,
@@ -38,6 +39,10 @@ def db_path() -> Path:
     return data_dir() / "redcalibur.db"
 
 
+def artifacts_dir() -> Path:
+    return data_dir() / "artifacts"
+
+
 @contextmanager
 def connect() -> Iterator[sqlite3.Connection]:
     data_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -45,7 +50,9 @@ def connect() -> Iterator[sqlite3.Connection]:
         os.chmod(data_dir(), 0o700)
     except PermissionError:
         pass
-    conn = sqlite3.connect(db_path())
+    # A generous busy timeout keeps the worker thread and request threads from
+    # tripping over each other on SQLite's single-writer lock.
+    conn = sqlite3.connect(db_path(), timeout=30.0)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -128,6 +135,17 @@ def migrate() -> None:
               normalized_json TEXT NOT NULL,
               collected_at TEXT NOT NULL,
               FOREIGN KEY(workspace_id) REFERENCES workspaces(id),
+              FOREIGN KEY(run_id) REFERENCES runs(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS run_events (
+              id TEXT PRIMARY KEY,
+              run_id TEXT NOT NULL,
+              seq INTEGER NOT NULL,
+              event_type TEXT NOT NULL,
+              payload_json TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              UNIQUE(run_id, seq),
               FOREIGN KEY(run_id) REFERENCES runs(id)
             );
             """
@@ -403,8 +421,10 @@ def update_job(job: Job) -> None:
 
 def list_jobs(run_id: str) -> list[Job]:
     with connect() as conn:
+        # Order by insertion (rowid): jobs in one run share a started_at, so
+        # this keeps job order stable and deterministic across reads.
         rows = conn.execute(
-            "SELECT * FROM jobs WHERE run_id = ? ORDER BY started_at",
+            "SELECT * FROM jobs WHERE run_id = ? ORDER BY rowid",
             (run_id,),
         ).fetchall()
     return [
@@ -458,3 +478,95 @@ def list_evidence_items(run_id: str) -> list[EvidenceItem]:
         )
         for row in rows
     ]
+
+
+def get_run_status(run_id: str) -> RunStatus | None:
+    """Cheap status read used by the worker to honor cancellation requests."""
+    with connect() as conn:
+        row = conn.execute("SELECT status FROM runs WHERE id = ?", (run_id,)).fetchone()
+    if row is None:
+        return None
+    return RunStatus(row["status"])
+
+
+def append_run_event(run_id: str, event_type: str, payload: dict) -> RunEvent:
+    """Append an ordered run event. The seq is monotonic per run.
+
+    The seq is computed and inserted in a single atomic statement so that two
+    concurrent writers (e.g. the worker thread and the cancel request thread)
+    can never compute the same seq. A UNIQUE(run_id, seq) constraint backstops
+    this; on the rare collision we retry.
+    """
+    event_id = new_id()
+    created_at = utc_now()
+    payload_json = json.dumps(payload)
+    for _ in range(5):
+        try:
+            with connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO run_events (id, run_id, seq, event_type, payload_json, created_at)
+                    SELECT ?, ?, COALESCE(MAX(seq), 0) + 1, ?, ?, ?
+                    FROM run_events WHERE run_id = ?
+                    """,
+                    (event_id, run_id, event_type, payload_json, created_at, run_id),
+                )
+                row = conn.execute(
+                    "SELECT seq FROM run_events WHERE id = ?", (event_id,)
+                ).fetchone()
+            return RunEvent(
+                id=event_id,
+                run_id=run_id,
+                seq=int(row["seq"]),
+                event_type=event_type,
+                payload=payload,
+                created_at=created_at,
+            )
+        except sqlite3.IntegrityError:
+            continue
+    raise RuntimeError(f"Could not append run event for run {run_id} after retries")
+
+
+def list_run_events(run_id: str, after_seq: int = 0) -> list[RunEvent]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM run_events WHERE run_id = ? AND seq > ? ORDER BY seq",
+            (run_id, after_seq),
+        ).fetchall()
+    return [
+        RunEvent(
+            id=row["id"],
+            run_id=row["run_id"],
+            seq=row["seq"],
+            event_type=row["event_type"],
+            payload=json.loads(row["payload_json"]),
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+def write_run_artifact(run: Run, jobs: list[Job], evidence: list[EvidenceItem]) -> Path:
+    """Persist a durable JSON snapshot of a finished run to data/artifacts/.
+
+    Local-only file write — no network. The snapshot is the same shape the API
+    returns so a run remains inspectable even outside the app.
+    """
+    target_dir = artifacts_dir()
+    target_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(target_dir, 0o700)
+    except PermissionError:
+        pass
+    artifact_path = target_dir / f"{run.id}.json"
+    snapshot = {
+        "run": run.model_dump(mode="json"),
+        "jobs": [job.model_dump(mode="json") for job in jobs],
+        "evidence": [item.model_dump(mode="json") for item in evidence],
+    }
+    artifact_path.write_text(json.dumps(snapshot, indent=2), encoding="utf-8")
+    try:
+        os.chmod(artifact_path, 0o600)
+    except PermissionError:
+        pass
+    return artifact_path
