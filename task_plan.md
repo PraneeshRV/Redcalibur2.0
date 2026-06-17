@@ -1,6 +1,6 @@
 # RedCalibur 2.0 Task Plan
 
-Status: Product planning package drafted, awaiting user approval.
+Status: MVP complete (Phases 0-7) — implemented and verified.
 
 ## Goal
 
@@ -49,4 +49,4 @@ Product Spine Preview:
 
 ## Next Step
 
-Review Product Spine Preview and decide the next implementation slice.
+MVP shipped. Future work is v1 (AI security lab: prompt-injection / RAG-leakage / unsafe-tool-use suites, finding lifecycle, CI, Docker) and v2 (recon-to-report). Any live network or AI source must sit behind a Tier-2 policy gate per the safety policy.

@@ -95,6 +95,7 @@ class RunKind(StrEnum):
     mcp_config_scan = "mcp_config_scan"
     ai_config_scan = "ai_config_scan"
     secrets_baseline = "secrets_baseline"
+    vuln_scan = "vuln_scan"
     baseline = "baseline"
 
 
@@ -165,6 +166,51 @@ class RunEvent(BaseModel):
     event_type: str
     payload: dict[str, Any]
     created_at: str
+
+
+class AnalystQuestionKind(StrEnum):
+    explain_findings = "explain_findings"
+    prioritize = "prioritize"
+    remediate = "remediate"
+    report_section = "report_section"
+
+
+class AnalystRequest(BaseModel):
+    kind: AnalystQuestionKind
+    run_id: str | None = None  # restrict to one run; default = all workspace evidence
+
+
+class Finding(BaseModel):
+    id: str
+    workspace_id: str
+    package: str
+    ecosystem: str
+    vuln_id: str
+    aliases: list[str]
+    severity_cvss: float
+    severity_label: str
+    kev: bool
+    epss: float
+    priority_score: int
+    fixed_version: str | None
+    fix_available: bool
+    evidence_id: str
+    status: str = "open"
+
+
+class AnalystClaim(BaseModel):
+    text: str
+    evidence_ids: list[str]
+
+
+class AnalystResponse(BaseModel):
+    kind: AnalystQuestionKind
+    headline: str
+    claims: list[AnalystClaim]
+    citations: list[str]
+    provider: str
+    evidence_considered: int
+    unsupported_rejected: int
 
 
 class RunStartRequest(BaseModel):

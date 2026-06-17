@@ -29,8 +29,8 @@ def test_baseline_run_fans_out_to_multiple_jobs(monkeypatch, tmp_path) -> None:
     body = run.json()
     assert body["run"]["kind"] == "baseline"
     assert body["run"]["status"] == "complete"
-    # Four developer-surface adapters => four jobs under one run.
-    assert len(body["jobs"]) == 4
+    # Four developer-surface adapters + vuln scan => five jobs under one run.
+    assert len(body["jobs"]) == 5
     tool_ids = {job["tool_id"] for job in body["jobs"]}
     assert any("manifest_scan" in t for t in tool_ids)
     assert any("secrets_baseline" in t for t in tool_ids)
@@ -67,7 +67,7 @@ def test_async_run_returns_queued_then_completes(monkeypatch, tmp_path) -> None:
     assert created["run"]["status"] in ("queued", "running", "complete")
     assert final is not None
     assert final["run"]["status"] == "complete"
-    assert len(final["jobs"]) == 4
+    assert len(final["jobs"]) == 5
 
 
 def test_run_emits_ordered_events(monkeypatch, tmp_path) -> None:

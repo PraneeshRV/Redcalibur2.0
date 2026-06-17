@@ -480,6 +480,28 @@ def list_evidence_items(run_id: str) -> list[EvidenceItem]:
     ]
 
 
+def list_workspace_evidence(workspace_id: str) -> list[EvidenceItem]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM evidence_items WHERE workspace_id = ? ORDER BY collected_at",
+            (workspace_id,),
+        ).fetchall()
+    return [
+        EvidenceItem(
+            id=row["id"],
+            workspace_id=row["workspace_id"],
+            run_id=row["run_id"],
+            source_tool=row["source_tool"],
+            evidence_type=row["evidence_type"],
+            title=row["title"],
+            summary=row["summary"],
+            normalized=json.loads(row["normalized_json"]),
+            collected_at=row["collected_at"],
+        )
+        for row in rows
+    ]
+
+
 def get_run_status(run_id: str) -> RunStatus | None:
     """Cheap status read used by the worker to honor cancellation requests."""
     with connect() as conn:

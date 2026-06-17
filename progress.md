@@ -90,3 +90,28 @@ Phase 4 (Run Orchestration and Evidence Store) built on top of Phase 3.
 ## Current State
 
 Phase 4 is complete and verified. Run orchestration, cancellation, live events, artifact persistence, and the Runs/evidence browser are in place.
+
+## 2026-06-17 (Phases 5-7 — MVP)
+
+Built Phases 5, 6, and 7 to reach the portfolio MVP. Everything stays offline and deterministic within the safety envelope (no network, no subprocess, mock AI only).
+
+Phase 5 — Open-data vulnerability intelligence (offline):
+- Bundled OSV-style feed at `redcalibur_api/vuln_feed/osv-offline.json` (local file, never network). Vulnerability IDs are only ever emitted from the feed.
+- `vuln_intel.py`: feed loader, version matching (introduced <= observed < fixed), explainable 0-100 priority score (severity + known-exploited + exploit-probability, each attributed), and a stale-feed indicator (>90 days).
+- `tools/vuln_scan.py`: Tier-1 read-only adapter, reuses manifest parsers, honors `excluded_roots`, emits `vulnerability_match` evidence. New `vuln_scan` RunKind; also added to the `baseline` fan-out (now 5 jobs).
+
+Phase 6 — Evidence-backed AI analyst (mock only, no live calls):
+- `ai/providers.py` deterministic `MockProvider`; `ai/gateway.py` validates every claim's citations against real evidence ids (drops + counts ungrounded claims) and redacts secret-shaped text.
+- `POST /workspaces/{id}/analyst` with kinds explain_findings / prioritize / remediate / report_section. Enum-only input, so no free-text instruction path to the provider.
+
+Phase 7 — Findings, report export, UI polish:
+- `findings.py` derives prioritized findings from evidence (each linked to its evidence id). `GET /workspaces/{id}/findings`.
+- `reporting.py` builds deterministic Markdown + HTML assessment reports (summary, prioritized recs with citations, findings table, evidence index, feed-staleness line, Demo/Learning watermark, HTML-escaped). `GET /workspaces/{id}/report?format=md|html`.
+- New `/findings` web page: triage table with severity/KEV badges and evidence drawer, AI Analyst panel (cited answers), and report export buttons. Nav now four pages.
+- README rewritten with capabilities, demo flow, and safety boundaries.
+- Reviewed against the safety policy (no network, mock AI, read-only scans with exclusions honored, citation-grounded analyst, redaction, escaped HTML) — no blockers; applied the two flagged policy-alignment fixes (feed-staleness surfaced in the report, Demo/Learning watermark).
+- Verified: API 75 passed (16 new), web production build passed (5 routes), Playwright 4 passed (incl. a workspace→baseline→findings→analyst golden path).
+
+## Current State
+
+MVP complete (Phases 0-7). Workspace/scope/safety spine, developer-surface scans, run orchestration, offline vulnerability intelligence, evidence-backed mock AI analyst, findings triage, and Markdown/HTML report export are all built and verified. Remaining roadmap items (v1 AI security lab, v2 recon-to-report) are future work; any live network/AI source must go behind a Tier-2 policy gate.

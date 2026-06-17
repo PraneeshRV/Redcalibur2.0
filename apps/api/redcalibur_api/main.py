@@ -5,10 +5,15 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse, HTMLResponse
 
 from redcalibur_api import db
+from redcalibur_api.ai import gateway as analyst_gateway
+from redcalibur_api import reporting
+from redcalibur_api.findings import derive_findings
 from redcalibur_api.models import (
+    AnalystRequest,
+    AnalystResponse,
     AuditEvent,
     Job,
     JobStatus,
@@ -28,6 +33,7 @@ from redcalibur_api.tools import manifest_scan as _manifest_scan_module  # noqa:
 from redcalibur_api.tools import mcp_config_scan as _mcp_config_scan_module  # noqa: F401 — registers adapter
 from redcalibur_api.tools import ai_config_scan as _ai_config_scan_module  # noqa: F401 — registers adapter
 from redcalibur_api.tools import secrets_baseline as _secrets_baseline_module  # noqa: F401 — registers adapter
+from redcalibur_api.tools import vuln_scan as _vuln_scan_module  # noqa: F401 — registers adapter
 
 # How long a synchronous (wait=True) run request will block before returning a
 # still-running snapshot. Generous enough for the deterministic local adapters.
@@ -135,6 +141,44 @@ def create_app() -> FastAPI:
 
     # NOTE: a plain ``def`` (not ``async def``) — Starlette runs it in a
     # threadpool, so the synchronous wait below never blocks the event loop.
+    @app.get("/workspaces/{workspace_id}/findings")
+    async def findings(workspace_id: str):
+        db.initialize_database()
+        if db.get_workspace(workspace_id) is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        evidence = db.list_workspace_evidence(workspace_id)
+        return derive_findings(workspace_id, evidence)
+
+    @app.get("/workspaces/{workspace_id}/report")
+    async def report(workspace_id: str, format: str = "md"):
+        db.initialize_database()
+        workspace = db.get_workspace(workspace_id)
+        if workspace is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        if format not in ("md", "html"):
+            raise HTTPException(status_code=400, detail="format must be 'md' or 'html'")
+        runs = db.list_runs(workspace_id)
+        evidence = db.list_workspace_evidence(workspace_id)
+        if format == "html":
+            return HTMLResponse(reporting.build_html(workspace, runs, evidence))
+        return PlainTextResponse(
+            reporting.build_markdown(workspace, runs, evidence),
+            media_type="text/markdown",
+        )
+
+    @app.post("/workspaces/{workspace_id}/analyst", response_model=AnalystResponse)
+    async def analyst(workspace_id: str, request: AnalystRequest):
+        db.initialize_database()
+        if db.get_workspace(workspace_id) is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        if request.run_id is not None:
+            evidence = db.list_evidence_items(request.run_id)
+        else:
+            evidence = db.list_workspace_evidence(workspace_id)
+        # Mock provider only — no live AI calls. The gateway validates every
+        # claim's citations against this evidence set and rejects ungrounded ones.
+        return analyst_gateway.analyze(request.kind, evidence)
+
     @app.post("/workspaces/{workspace_id}/runs", response_model=RunResponse, status_code=201)
     def start_run(workspace_id: str, request: RunStartRequest):
         db.initialize_database()

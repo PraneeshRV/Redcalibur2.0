@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, LayoutDashboard, Search, ShieldCheck } from "lucide-react";
+import { Activity, LayoutDashboard, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Command Center", icon: LayoutDashboard },
   { href: "/developer-surface", label: "Developer Surface", icon: Search },
   { href: "/runs", label: "Runs", icon: Activity },
+  { href: "/findings", label: "Findings", icon: ShieldAlert },
 ];
 
 export function NavBar() {
