@@ -16,3 +16,6 @@ test-results/
 .env
 .env.local
 .superpowers/
+
+# graphify knowledge-graph cache (generated, machine-local)
+graphify-out/
