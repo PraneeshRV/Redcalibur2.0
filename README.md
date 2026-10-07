@@ -10,6 +10,7 @@ RedCalibur 2.0 is a local-first AI security and developer exposure workbench. It
 - **Offline vulnerability intelligence** — matched packages are enriched against a bundled, offline OSV-style feed with an explainable priority score (severity + known-exploited + exploit probability) and stale-feed indicators. Vulnerability IDs only ever come from the feed.
 - **Evidence-backed AI analyst** — a mock provider answers "what should I fix first?", explains findings, and drafts remediation. Every claim cites the evidence it came from; ungrounded claims are rejected and secret-shaped text is redacted. No live AI calls.
 - **Findings triage and report export** — a prioritized findings view plus Markdown and HTML assessment reports assembled deterministically from evidence.
+- **AD attack detections (Sigma)** — detection-as-code rules for common Active Directory attacks (Kerberoasting, DCSync, LSASS access, pass-the-hash, LLMNR/NBT-NS poisoning), each validated as spec-compliant Sigma and proven by tests that show it catches the attack and stays quiet on normal activity. See [detections/](detections/).
 
 The console has four pages: Command Center, Developer Surface, Runs, and Findings.
 
@@ -68,6 +69,20 @@ npm run test
 3. Review the prioritized findings (the demo npm package surfaces as a critical, known-exploited match).
 4. Ask the **AI Analyst** what to fix first — the answer cites evidence ids.
 5. Export the assessment as **Markdown** or **HTML**.
+
+## Detections
+
+`detections/` holds the Sigma rule pack for common Active Directory attack
+techniques. Every rule is validated with pySigma and ships with attack and
+benign sample events, so the test suite proves each rule fires on the attack
+and stays silent on normal activity:
+
+```bash
+pip install -r detections/requirements.txt
+cd detections && python -m pytest -q
+```
+
+Details, signals and tuning notes: [detections/README.md](detections/README.md).
 
 ## Safety boundaries
 
