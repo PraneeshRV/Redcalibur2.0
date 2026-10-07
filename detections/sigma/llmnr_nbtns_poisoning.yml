@@ -1,0 +1,36 @@
+title: LLMNR/NBT-NS Response Indicative of Name Poisoning
+id: 4d96c7ed-6ccd-43f2-a10f-5656980bd8d6
+status: experimental
+description: |
+  Detects a host emitting LLMNR (UDP 5355) or NBT-NS (UDP 137) *responses*
+  (Sysmon Event 3, Initiated=true with the multicast resolver source port).
+  Poisoning tools such as Responder and Inveigh answer broadcast name-resolution
+  requests to lure victims into authenticating to the attacker. Normal clients
+  send name-resolution *queries* (DestinationPort 5355/137) rather than
+  responses, which lets this rule separate poisoning behaviour from routine
+  lookups. This is a heuristic: hosts legitimately answering for their own name
+  also respond, so tune with an allow-list of expected name owners / resolvers
+  and treat a host answering for many distinct names as the escalation.
+references:
+  - https://attack.mitre.org/techniques/T1557/001/
+author: RedCalibur
+date: 2026-10-07
+logsource:
+  product: windows
+  category: network_connection
+detection:
+  selection:
+    EventID: 3
+    Protocol: udp
+    Initiated: true
+    SourcePort:
+      - 5355
+      - 137
+  condition: selection
+falsepositives:
+  - A host legitimately answering LLMNR/NBT-NS for its own hostname
+  - Environments that have not disabled LLMNR/NBT-NS and rely on it
+level: medium
+tags:
+  - attack.credential_access
+  - attack.t1557.001

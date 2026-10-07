@@ -1,0 +1,33 @@
+title: Kerberoasting via RC4 Service Ticket Request
+id: e0a783b3-d876-45f6-92ef-9add72a81d29
+status: experimental
+description: |
+  Detects Kerberos service ticket (TGS-REQ) requests that use the weak RC4
+  (0x17) encryption type. Attackers request RC4 tickets for service accounts so
+  the tickets can be cracked offline to recover the account password
+  (Kerberoasting). Machine accounts (ServiceName ending in $) and krbtgt are
+  excluded as benign. Tune by baselining the service accounts that legitimately
+  still negotiate RC4; alert volume per source account is the strongest signal.
+references:
+  - https://attack.mitre.org/techniques/T1558/003/
+author: RedCalibur
+date: 2026-10-07
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769
+    TicketEncryptionType: '0x17'
+  filter_machine:
+    ServiceName|endswith: '$'
+  filter_krbtgt:
+    ServiceName: krbtgt
+  condition: selection and not 1 of filter_*
+falsepositives:
+  - Legacy service accounts pinned to RC4
+  - Older clients that negotiate RC4 by default
+level: high
+tags:
+  - attack.credential_access
+  - attack.t1558.003

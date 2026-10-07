@@ -58,3 +58,20 @@ jobs:
           else
             echo "Threshold gate correctly failed on demo data"
           fi
+
+  detections:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install detection dependencies
+        run: pip install -r detections/requirements.txt
+
+      - name: Validate Sigma rules and run catch/quiet tests
+        working-directory: detections
+        run: python -m pytest -q

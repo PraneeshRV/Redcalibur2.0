@@ -1,0 +1,33 @@
+title: Active Directory Replication (DCSync) by Non-Machine Account
+id: 576beca2-98ad-4901-986a-b9fd6da8d6ee
+status: experimental
+description: |
+  Detects use of the directory replication rights DS-Replication-Get-Changes
+  and DS-Replication-Get-Changes-All (Event 4662) by an account that is not a
+  domain controller machine account. This is how DCSync / secretsdump pulls
+  password hashes (including krbtgt) straight from AD without touching the DC
+  disk. Legitimate replication is performed by DC computer accounts (names
+  ending in $), which are excluded.
+references:
+  - https://attack.mitre.org/techniques/T1003/006/
+author: RedCalibur
+date: 2026-10-07
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4662
+    Properties|contains:
+      - 1131f6aa-9c07-11d1-f79f-00c04fc2dcd2
+      - 1131f6ad-9c07-11d1-f79f-00c04fc2dcd2
+  filter_machine:
+    SubjectUserName|endswith: '$'
+  condition: selection and not filter_machine
+falsepositives:
+  - Azure AD Connect / directory sync service accounts
+  - Approved replication tooling using a dedicated service account
+level: high
+tags:
+  - attack.credential_access
+  - attack.t1003.006
