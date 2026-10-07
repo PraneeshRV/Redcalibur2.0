@@ -1,0 +1,37 @@
+title: Traffic to Reverse-Tunnel Services
+id: c7e29a10-5f46-4d18-8b3e-6a90d24f5c81
+status: experimental
+description: |
+  Detects connections to public reverse-tunnel services (Cloudflare quick
+  tunnels, ngrok, localhost.run, Serveo). Attackers use them to expose C2
+  or phishing pages through reputable infrastructure without buying
+  hosting. Benign use exists (developers testing local apps), so the
+  strongest tuning is org-relative: alert on the first time a given host or
+  user touches a tunnel domain, not on every hit, and allow-list known
+  development users.
+references:
+  - https://attack.mitre.org/techniques/T1071/001/
+  - https://attack.mitre.org/techniques/T1090/
+author: RedCalibur
+date: 2026-10-07
+logsource:
+  category: proxy
+detection:
+  selection:
+    cs-host|endswith:
+      - trycloudflare.com
+      - ngrok.io
+      - ngrok-free.app
+      - ngrok.dev
+      - localhost.run
+      - loca.lt
+      - serveo.net
+  condition: selection
+falsepositives:
+  - Developers exposing local apps through quick tunnels during testing
+  - Legitimate remote-access tooling built on these services
+level: medium
+tags:
+  - attack.command_and_control
+  - attack.t1071.001
+  - attack.t1090

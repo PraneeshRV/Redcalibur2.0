@@ -1,0 +1,44 @@
+title: Download of Risky File Types (ISO, LNK, HTA, Script)
+id: e9b81c54-7a20-4f3d-b26e-4c17a9d0e652
+status: experimental
+description: |
+  Detects successful downloads of file types commonly used in initial
+  access: container images (.iso/.img/.vhd) that carry malware past
+  Mark-of-the-Web, shortcut files (.lnk), HTML applications (.hta), and
+  script files. This is a triage signal, not a verdict: administrators
+  download ISOs and vendor sites serve .js. Production tuning strips the
+  query string before matching the extension and allow-lists vendor
+  domains. Correlate with the user agent rule: a script UA pulling a .ps1
+  from a raw paste host is a much stronger event than either alone.
+references:
+  - https://attack.mitre.org/techniques/T1204/002/
+author: RedCalibur
+date: 2026-10-07
+logsource:
+  category: proxy
+detection:
+  selection_method:
+    cs-method: GET
+  selection_status:
+    sc-status: 200
+  selection_ext:
+    c-uri|endswith:
+      - .iso
+      - .img
+      - .vhd
+      - .lnk
+      - .hta
+      - .js
+      - .jse
+      - .vbs
+      - .ps1
+      - .bat
+      - .scr
+  condition: all of selection_*
+falsepositives:
+  - Administrator and developer downloads of ISO images and vendor scripts
+  - Web apps whose URLs end in .js or .ps1 by routing coincidence
+level: low
+tags:
+  - attack.execution
+  - attack.t1204.002

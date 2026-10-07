@@ -59,13 +59,27 @@ VECTORS: dict[str, dict[str, list[dict]]] = {
                 "GrantedAccess": "0x1410",
                 "SourceImage": r"C:\Users\jdoe\Downloads\mk.exe",
             },
+            # Same mask in the zero-padded form real EVTX logs carry
+            # (caught by replaying EVTX-ATTACK-SAMPLES, not by this vector).
+            {
+                "EventID": 10,
+                "TargetImage": r"C:\Windows\system32\lsass.exe",
+                "GrantedAccess": "0x00001010",
+                "SourceImage": r"C:\Users\IEUser\Desktop\mimikatz.exe",
+            },
         ],
         "benign": [
-            # Benign low-privilege handle to LSASS.
+            # Benign low-privilege handle to LSASS (zero-padded form too).
             {
                 "EventID": 10,
                 "TargetImage": r"C:\Windows\System32\lsass.exe",
                 "GrantedAccess": "0x1000",
+                "SourceImage": r"C:\Windows\System32\svchost.exe",
+            },
+            {
+                "EventID": 10,
+                "TargetImage": r"C:\Windows\System32\lsass.exe",
+                "GrantedAccess": "0x00001000",
                 "SourceImage": r"C:\Windows\System32\svchost.exe",
             },
             # Antimalware service reading LSASS (filtered out).

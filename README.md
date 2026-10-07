@@ -10,7 +10,8 @@ RedCalibur 2.0 is a local-first AI security and developer exposure workbench. It
 - **Offline vulnerability intelligence** — matched packages are enriched against a bundled, offline OSV-style feed with an explainable priority score (severity + known-exploited + exploit probability) and stale-feed indicators. Vulnerability IDs only ever come from the feed.
 - **Evidence-backed AI analyst** — a mock provider answers "what should I fix first?", explains findings, and drafts remediation. Every claim cites the evidence it came from; ungrounded claims are rejected and secret-shaped text is redacted. No live AI calls.
 - **Findings triage and report export** — a prioritized findings view plus Markdown and HTML assessment reports assembled deterministically from evidence.
-- **AD attack detections (Sigma)** — detection-as-code rules for common Active Directory attacks (Kerberoasting, DCSync, LSASS access, pass-the-hash, LLMNR/NBT-NS poisoning), each validated as spec-compliant Sigma and proven by tests that show it catches the attack and stays quiet on normal activity. See [detections/](detections/).
+- **AD attack detections (Sigma)** — detection-as-code rules for common Active Directory attacks (Kerberoasting, DCSync, LSASS access, pass-the-hash, LLMNR/NBT-NS poisoning), each validated as spec-compliant Sigma and proven by tests that show it catches the attack and stays quiet on normal activity — three rules are also replayed against real EVTX attack captures. See [detections/](detections/).
+- **Proxy hunts** — Sigma rules for web-telemetry signals (non-browser tools on trusted sites, reverse tunnels, risky downloads) plus Python hunts for what per-event rules cannot express: C2 beaconing and rare/upload-heavy domains, demonstrated on a planted sample log. See [detections/proxy/](detections/proxy/).
 
 The console has four pages: Command Center, Developer Surface, Runs, and Findings.
 

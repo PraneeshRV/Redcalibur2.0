@@ -1,0 +1,44 @@
+title: Non-Browser Tool Pulling from Trusted Sites Abused for Delivery
+id: a1d4f7c2-3b95-4e68-9d0a-52c7e8f1b344
+status: experimental
+description: |
+  Detects scripts and non-browser clients (curl, wget, python, PowerShell,
+  Go) downloading from reputable services that attackers abuse to deliver
+  payloads — living-off-trusted-sites (LOTS). A browser hitting these hosts
+  is normal; a scripting user agent doing it is a lead: it is how staged
+  loaders pull second-stage payloads without owning infrastructure. Tune by
+  allow-listing known CI/CD runners and package tooling (pip, npm) by source
+  or by UserAgent before enabling enforcement.
+references:
+  - https://attack.mitre.org/techniques/T1105/
+  - https://lots-project.com/
+author: RedCalibur
+date: 2026-10-07
+logsource:
+  category: proxy
+detection:
+  selection_sites:
+    cs-host|endswith:
+      - raw.githubusercontent.com
+      - gist.githubusercontent.com
+      - objects.githubusercontent.com
+      - cdn.discordapp.com
+      - api.telegram.org
+      - pastebin.com
+      - transfer.sh
+  selection_ua:
+    UserAgent|contains:
+      - curl/
+      - wget
+      - python-requests
+      - python-urllib
+      - Go-http-client
+      - PowerShell
+  condition: selection_sites and selection_ua
+falsepositives:
+  - CI/CD pipelines and package managers pulling from GitHub raw by design
+  - Legitimate automation using the Telegram bot API
+level: medium
+tags:
+  - attack.command_and_control
+  - attack.t1105
